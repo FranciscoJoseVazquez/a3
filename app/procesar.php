@@ -158,7 +158,7 @@ function actualizarAusencia($absenceId, $diasActualizados, $access_token, $subsc
 $tokenData = cargarToken();
 
 if ($tokenData && isset($tokenData["refresh_token"])) {
-    // Intentar refrescar
+
     $nuevoTokenData = obtenerAccessTokenDesdeRefreshToken($tokenData["refresh_token"]);
     if ($nuevoTokenData && isset($nuevoTokenData["access_token"])) {
         guardarToken($nuevoTokenData);
@@ -181,7 +181,7 @@ if ($tokenData && isset($tokenData["refresh_token"])) {
 
 // Configuración
 $companyCode = 100;
-$subscriptionKey = "2kxwf5rb7ffb65dd5";
+$subscriptionKey = "ej";
 
 // Obtener vacaciones
 $vacaciones = obtenerVacacionesEmpleados($companyCode, $access_token, $subscriptionKey);
