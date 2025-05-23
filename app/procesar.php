@@ -219,5 +219,4 @@ if (isset($_FILES['archivo']) && $_FILES['archivo']['error'] === UPLOAD_ERR_OK) 
 } else {
     echo "Error al subir el archivo.";
 }
-
 ?>
