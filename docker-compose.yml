@@ -1,0 +1,20 @@
+version: "3.8"
+
+services:
+  listas:
+    build:
+      context: ./app
+      dockerfile: Dockerfile
+    container_name: listas
+    image: img_listas
+    volumes:
+      - ./app:/var/www/html
+    working_dir: /var/www/html
+    networks:
+      - red1
+    ports:
+      - "8080:80"
+
+networks:
+  red1:
+    driver: bridge
