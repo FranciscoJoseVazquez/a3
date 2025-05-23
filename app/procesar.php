@@ -1,8 +1,54 @@
 <?php
 
 // funciones
+function guardarToken($data) {
+    file_put_contents("token.json", json_encode($data));
+}
 
-function obtenerAccessToken($code) {
+function cargarToken() {
+    if (file_exists("token.json")) {
+        return json_decode(file_get_contents("token.json"), true);
+    }
+    return null;
+}
+
+function obtenerAccessTokenDesdeRefreshToken($refresh_token) {
+    $client_id = "WK.ES.A3WebApi.44480.S";
+    $client_secret = "JcWu2z4dR5Q3";
+    $token_url = "https://login.wolterskluwer.eu/auth/core/connect/token";
+
+    $data = [
+        'grant_type' => 'refresh_token',
+        'refresh_token' => $refresh_token,
+        'client_id' => $client_id,
+        'client_secret' => $client_secret,
+    ];
+
+    $options = [
+        CURLOPT_URL => $token_url,
+        CURLOPT_RETURNTRANSFER => true,
+        CURLOPT_POST => true,
+        CURLOPT_POSTFIELDS => http_build_query($data),
+        CURLOPT_HTTPHEADER => [
+            'Content-Type: application/x-www-form-urlencoded'
+        ],
+    ];
+
+    $ch = curl_init();
+    curl_setopt_array($ch, $options);
+    $response = curl_exec($ch);
+    $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
+    curl_close($ch);
+
+    if ($httpcode !== 200) {
+        echo "Error al refrescar token. Código HTTP $httpcode<br>";
+        return null;
+    }
+
+    return json_decode($response, true);
+}
+
+function obtenerAccessToken($code = null) {
     $client_id = "WK.ES.A3WebApi.44480.S";
     $client_secret = "JcWu2z4dR5Q3";
     $redirect_uri = "http://172.16.7.75:8100/listas.php";
@@ -30,30 +76,14 @@ function obtenerAccessToken($code) {
     curl_setopt_array($ch, $options);
     $response = curl_exec($ch);
     $httpcode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
-
-    if (curl_errno($ch)) {
-        echo "Error CURL: " . curl_error($ch);
-        curl_close($ch);
-        return null;
-    }
-
     curl_close($ch);
 
     if ($httpcode !== 200) {
-        echo "Error HTTP $httpcode al obtener token.\nRespuesta: $response\n";
+        echo "Error al obtener token. Código HTTP $httpcode<br>";
         return null;
     }
 
-    $json = json_decode($response, true);
-
-    if (isset($json["access_token"])) {
-        echo "Access token obtenido correctamente:\n";
-        echo $json["access_token"] . "\n";
-        return $json;
-    } else {
-        echo "No se pudo obtener el token de acceso.\n";
-        return null;
-    }
+    return json_decode($response, true);
 }
 
 function obtenerVacacionesEmpleados($companyCode, $access_token, $subscriptionKey) {
@@ -74,18 +104,13 @@ function obtenerVacacionesEmpleados($companyCode, $access_token, $subscriptionKe
     curl_close($ch);
 
     if ($httpcode !== 200) {
-        echo "Error HTTP $httpcode al obtener vacaciones.\nRespuesta: $response\n";
+        echo "Error HTTP $httpcode al obtener vacaciones.<br>";
         return null;
     }
 
     $data = json_decode($response, true);
 
-    if (empty($data)) {
-        echo "No se encontraron vacaciones o el formato es incorrecto.\n";
-        return [];
-    }
-
-    return $data;
+    return $data ?: [];
 }
 
 function buscarVacacionesPorCIF($vacaciones, $cif) {
@@ -96,13 +121,6 @@ function buscarVacacionesPorCIF($vacaciones, $cif) {
         }
     }
     return null;
-}
-
-function calcularDias($inicio, $fin) {
-    $start = new DateTime($inicio);
-    $end = new DateTime($fin);
-    $interval = $start->diff($end);
-    return $interval->days + 1;
 }
 
 function actualizarAusencia($absenceId, $diasActualizados, $access_token, $subscriptionKey) {
@@ -136,55 +154,65 @@ function actualizarAusencia($absenceId, $diasActualizados, $access_token, $subsc
     }
 }
 
-// Variables
-//- Variables de token
+// Obtener token
+$tokenData = cargarToken();
 
-$code = "Ej"; // <-- Cambiar 
-$tokenData = obtenerAccessToken($code);
-$access_token = $tokenData["access_token"];
+if ($tokenData && isset($tokenData["refresh_token"])) {
+    // Intentar refrescar
+    $nuevoTokenData = obtenerAccessTokenDesdeRefreshToken($tokenData["refresh_token"]);
+    if ($nuevoTokenData && isset($nuevoTokenData["access_token"])) {
+        guardarToken($nuevoTokenData);
+        $access_token = $nuevoTokenData["access_token"];
+    } else {
+        echo "❌ No se pudo refrescar el token. Reautenticación necesaria con código de autorización.<br>";
+        exit;
+    }
+} else {
+    // Primera vez: debes poner el CODE manual aquí para iniciarlo
+    $code = "COLOCA_AQUI_EL_CODE_LA_PRIMERA_VEZ";
+    $nuevoTokenData = obtenerAccessToken($code);
+    if ($nuevoTokenData && isset($nuevoTokenData["access_token"])) {
+        guardarToken($nuevoTokenData);
+        $access_token = $nuevoTokenData["access_token"];
+    } else {
+        echo "❌ No se pudo obtener el token inicial.<br>";
+        exit;
+    }
+}
 
-//- Variables de consultas
+// Configuración
+$companyCode = 100;
+$subscriptionKey = "2kxwf5rb7ffb65dd5";
 
-$access_token = $access_token;
-$companyCode = 100; // Código de empresa
-$subscriptionKey = "2kxwf5rb7ffb65dd5"; // <-- Cambiar 
-
-// sacar todas las vacaciones (Formato JSON)
+// Obtener vacaciones
 $vacaciones = obtenerVacacionesEmpleados($companyCode, $access_token, $subscriptionKey);
 
-
+// Procesar CSV
 if (isset($_FILES['archivo']) && $_FILES['archivo']['error'] === UPLOAD_ERR_OK) {
     $tmpName = $_FILES['archivo']['tmp_name'];
     $archivo = fopen($tmpName, "r");
 
     if ($archivo !== FALSE) {
-        // fgetcsv($archivo); // Si el fichero tiene encabezados, descomentar esto
-
         while (($fila = fgetcsv($archivo, 1000, ";")) !== FALSE) {
-            // Datos archivo
             $id = $fila[0];
             $cif = trim($fila[1]);
             $apellidos = $fila[2];
             $nombre = $fila[3];
             $diasActualizados = (int)$fila[4];
 
-            // si no se actualiza lo ignora
             if ($diasActualizados <= 0) {
                 continue;
             }
 
-            // buscar vacaciones de usuario
             $registro = buscarVacacionesPorCIF($vacaciones, $cif);
 
             if ($registro) {
-                // Actualizar
                 $absenceId = $registro["id"];
                 actualizarAusencia($absenceId, $diasActualizados, $access_token, $subscriptionKey);
             } else {
                 echo "$nombre $apellidos (CIF: $cif) no encontrado.<br>";
             }
         }
-
         fclose($archivo);
     } else {
         echo "No se pudo abrir el archivo.";
