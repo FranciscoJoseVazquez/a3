@@ -113,7 +113,7 @@ function obtenerVacacionesEmpleados($companyCode, $access_token, $subscriptionKe
     return $data ?: [];
 }
 
-function buscarVacacionesPorCIF($vacaciones, $cif) {
+function buscarPorCIF($vacaciones, $cif) {
     foreach ($vacaciones as $vacacion) {
         if (isset($vacacion['employeeIdentification']['nif']) &&
             trim($vacacion['employeeIdentification']['nif']) === trim($cif)) {
@@ -164,18 +164,17 @@ if ($tokenData && isset($tokenData["refresh_token"])) {
         guardarToken($nuevoTokenData);
         $access_token = $nuevoTokenData["access_token"];
     } else {
-        echo "❌ No se pudo refrescar el token. Reautenticación necesaria con código de autorización.<br>";
+        echo "No se pudo refrescar el token. Reautenticación necesaria con código de autorización.<br>";
         exit;
     }
 } else {
-    // Primera vez: debes poner el CODE manual aquí para iniciarlo
-    $code = "COLOCA_AQUI_EL_CODE_LA_PRIMERA_VEZ";
+    $code = "Code";
     $nuevoTokenData = obtenerAccessToken($code);
     if ($nuevoTokenData && isset($nuevoTokenData["access_token"])) {
         guardarToken($nuevoTokenData);
         $access_token = $nuevoTokenData["access_token"];
     } else {
-        echo "❌ No se pudo obtener el token inicial.<br>";
+        echo "No se pudo obtener el token inicial.<br>";
         exit;
     }
 }
@@ -204,7 +203,7 @@ if (isset($_FILES['archivo']) && $_FILES['archivo']['error'] === UPLOAD_ERR_OK) 
                 continue;
             }
 
-            $registro = buscarVacacionesPorCIF($vacaciones, $cif);
+            $registro = buscarPorCIF($vacaciones, $cif);
 
             if ($registro) {
                 $absenceId = $registro["id"];
